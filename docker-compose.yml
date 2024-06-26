@@ -1,0 +1,29 @@
+services:
+  search_service:
+    build:
+      context: ./search_service
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./search_service/src:/usr/src/app/src
+    command: ["fastapi", "dev", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]
+
+  
+
+  # book_service:
+  #   build:
+  #     context: ./book_service
+  #   ports:
+  #     - "8002:8000"
+  #   volumes:
+  #     - ./book_service/src:/usr/src/app/src
+  #   command: ["fastapi", "dev", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]
+  
+  # confirm_service:
+  #   build:
+  #     context: ./confirm_service
+  #   ports:
+  #     - "8003:8000"
+  #   volumes:
+  #     - ./confirm_service/src:/usr/src/app/src
+  #   command: ["fastapi", "dev", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]
