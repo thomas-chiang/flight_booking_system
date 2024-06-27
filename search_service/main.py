@@ -10,7 +10,7 @@ import json
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, echo=True, future=True)
 redis_client = Redis.from_url(REDIS_URL)
 
 app = FastAPI()

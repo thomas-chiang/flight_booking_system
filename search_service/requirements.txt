@@ -1,6 +1,6 @@
 fastapi
 uvicorn
 sqlmodel
-mysql-connector-python
+psycopg2-binary
 redis
 faker

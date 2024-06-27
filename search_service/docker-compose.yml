@@ -2,31 +2,30 @@ version: '3.8'
 
 services:
   db:
-    image: mysql:8.0
+    image: postgres:13
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: flights
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
+      POSTGRES_DB: flights
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
     ports:
-      - "3306:3306"
+      - "5433:5432"
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data:/var/lib/postgresql/data
 
   redis:
     image: redis:latest
     ports:
-      - "6379:6379"
+      - "6380:6379"
 
   web:
     build: .
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       - db
       - redis
     environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@db:3306/flights
+      - DATABASE_URL=postgresql+psycopg2://user:password@db:5432/flights
       - REDIS_URL=redis://redis:6379
 
 volumes:
