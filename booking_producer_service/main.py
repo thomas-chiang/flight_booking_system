@@ -12,7 +12,7 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", 5672))
-BOOK_CONSUMER_URL = os.getenv("BOOK_CONSUMER_URL", "http://localhost:8001/")
+BOOKING_CONSUMER_URL = os.getenv("BOOKING_CONSUMER_URL", "http://localhost:8001/")
 
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
@@ -44,7 +44,7 @@ async def check_and_update_redis(flight_id):
     if not await r.exists(flight_id):
         async with aiohttp.ClientSession() as session:
             try: 
-                async with session.post(BOOK_CONSUMER_URL, json={"flight_id": flight_id}) as response:
+                async with session.post(BOOKING_CONSUMER_URL, json={"flight_id": flight_id}) as response:
                     if response.status == 200:
                         await r.set(flight_id, 1)
             except Exception as e:

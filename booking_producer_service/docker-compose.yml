@@ -17,9 +17,9 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
-  book_producer_service:
+  booking_producer_service:
     build: .
-    container_name: "book_producer_service"
+    container_name: "booking_producer_service"
     ports:
       - "8000:8000"
     depends_on:
@@ -30,4 +30,4 @@ services:
       - REDIS_PORT=6379
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
-      - BOOK_CONSUMER_URL=http://book_consumer_service:8000/flight_id
+      - BOOKING_CONSUMER_URL=http://booking_consumer_service:8000/
