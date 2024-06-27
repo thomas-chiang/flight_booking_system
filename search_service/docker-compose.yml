@@ -1,8 +1,33 @@
+version: '3.8'
+
 services:
-  server:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: flights
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+
+  web:
     build: .
     ports:
       - "8000:8000"
-    volumes:
-      - ./src:/usr/src/app/src
-    command: ["fastapi", "dev", "src/main.py", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@db:3306/flights
+      - REDIS_URL=redis://redis:6379
+
+volumes:
+  db_data:
