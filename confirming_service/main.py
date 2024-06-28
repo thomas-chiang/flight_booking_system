@@ -3,8 +3,9 @@ from sqlmodel import Field, SQLModel, create_engine, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.orm import sessionmaker
+import os
 
-DATABASE_URL = "postgresql+asyncpg://youruser:yourpassword@db/yourdb"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Create an async engine
 async_engine = create_async_engine(DATABASE_URL, echo=True, future=True)

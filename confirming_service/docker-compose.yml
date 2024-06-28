@@ -14,6 +14,8 @@ services:
 
   web:
     build: .
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://youruser:yourpassword@db/yourdb
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/code
