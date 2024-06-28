@@ -3,25 +3,19 @@ version: '3.8'
 services:
   redis:
     image: "redis:6.0"
-    container_name: "redis"
     ports:
-      - "6379:6379"
+      - "6380:6379"
 
   rabbitmq:
     image: "rabbitmq:3-management"
-    container_name: "rabbitmq"
     ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      - "5673:5672"
+      - "15673:15672"
 
   booking_producer_service:
     build: .
-    container_name: "booking_producer_service"
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       - redis
       - rabbitmq
@@ -31,3 +25,7 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - BOOKING_CONSUMER_URL=http://booking_consumer_service:8000/
+    volumes:
+      - .:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+

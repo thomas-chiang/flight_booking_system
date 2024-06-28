@@ -38,6 +38,7 @@ async def send_to_queue(flight_id, customer_id):
         channel = await connection.channel()
         exchange = await channel.declare_exchange(flight_id, aio_pika.ExchangeType.TOPIC)
         message = aio_pika.Message(body=customer_id.encode())
+        print(customer_id, message)
         await exchange.publish(message, routing_key=flight_id)
 
 async def check_and_update_redis(flight_id):
