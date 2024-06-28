@@ -7,6 +7,7 @@ import aiohttp
 import os
 import sys
 import uuid
+import json
 
 app = FastAPI()
 
@@ -39,8 +40,10 @@ async def send_to_queue(flight_id, customer_id, booking_id):
     async with connection:
         channel = await connection.channel()
         exchange = await channel.declare_exchange(flight_id, aio_pika.ExchangeType.TOPIC)
-        message_body = customer_id + "_" + booking_id
+        
+        message_body = json.dumps({"booking_id": booking_id, "customer_id": customer_id})
         message = aio_pika.Message(body=message_body.encode())
+        
         await exchange.publish(message, routing_key=flight_id)
 
 async def initialize_consumer(flight_id):

@@ -1,16 +1,16 @@
 version: '3.9'
 
 services:
-  postgres:
+  db:
     image: postgres:13
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
+      POSTGRES_USER: youruser
+      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_DB: yourdb
     ports:
       - "5433:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:latest
@@ -22,16 +22,22 @@ services:
     ports:
       - "5673:5672"
       - "15673:15672"
-      
-  fastapi:
+
+  booking_consumer_service:
     build: .
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://youruser:yourpassword@db/yourdb
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8001:8000"
     depends_on:
-      - postgres
+      - db
       - redis
       - rabbitmq
+    volumes:
+      - .:/app
 
 volumes:
-  pgdata:
+  postgres_data:
