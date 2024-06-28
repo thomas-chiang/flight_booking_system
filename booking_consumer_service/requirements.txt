@@ -4,3 +4,4 @@ sqlmodel
 asyncpg
 aioredis
 aio_pika
+faker

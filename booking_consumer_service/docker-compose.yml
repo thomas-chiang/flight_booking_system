@@ -9,8 +9,8 @@ services:
       POSTGRES_DB: yourdb
     ports:
       - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    # volumes:
+    #   - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:latest
@@ -39,5 +39,5 @@ services:
     volumes:
       - .:/app
 
-volumes:
-  postgres_data:
+# volumes:
+#   postgres_data:
