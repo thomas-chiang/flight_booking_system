@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  redis:
-    image: "redis:latest"
+  booking_service_redis:
+    image: redis:latest
     ports:
       - "6380:6379"
 
@@ -17,12 +17,11 @@ services:
     ports:
       - "8001:8000"
     depends_on:
-      - redis
+      - booking_service_redis
       - rabbitmq
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - RABBITMQ_HOST=rabbitmq
+      - REDIS_URL=redis://booking_service_redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - RABBITMQ_PORT=5672
       - BOOKING_CONSUMER_URL=http://booking_consumer_service:8000/
     volumes:

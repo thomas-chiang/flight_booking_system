@@ -21,13 +21,16 @@ async_session_factory = sessionmaker(
 
 redis = aioredis.from_url(REDIS_URL, decode_responses=True)
 
+
 class Booking(SQLModel, table=True):
     id: str = Field(primary_key=True)
-    customer_id: int
-    flight_id: int
+    customer_id: str
+    flight_id: str
     status: str
 
+
 app = FastAPI()
+
 
 @app.on_event("startup")
 async def on_startup():
@@ -37,18 +40,18 @@ async def on_startup():
 
     async with async_session_factory() as session:
         # Create a new Booking instance
-        sample_booking_id = "sample_id"
-        statement = select(Booking).where(Booking.id == sample_booking_id)
+        sample_id = "sample_id"
+        statement = select(Booking).where(Booking.id == sample_id)
         result = await session.execute(statement)
         booking = result.scalar_one_or_none()
         if not booking:
             new_booking = Booking(
-                id=sample_booking_id,
-                customer_id=123,
-                flight_id=456,
-                status="failed"
+                id=sample_id,
+                customer_id=sample_id,
+                flight_id=sample_id,
+                status="failed",
             )
-            
+
             session.add(new_booking)
             await session.commit()
             print("Fake booking created with id 'sample_id'")
@@ -57,10 +60,10 @@ async def on_startup():
 @app.get("/booking_result/{booking_id}")
 async def get_booking_status(booking_id: str):
     booking_key = booking_id
-    
+
     if await redis.exists(booking_key):
         raise HTTPException(status_code=404, detail="still in progress")
-    
+
     async with async_session_factory() as session:
         statement = select(Booking).where(Booking.id == booking_id)
         result = await session.execute(statement)

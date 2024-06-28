@@ -1,6 +1,6 @@
 fastapi
 uvicorn
 pydantic
-redis
+aioredis
 aio_pika
 aiohttp

@@ -26,6 +26,7 @@ fake = Faker()
 
 redis = aioredis.from_url(REDIS_URL, decode_responses=True)
 
+
 class Flight(SQLModel, table=True):
     id: str = Field(default=None, primary_key=True)
     from_place: str = Field(index=True)
@@ -36,14 +37,17 @@ class Flight(SQLModel, table=True):
     oversell_limit: int
     current_booking: int
 
+
 class Booking(SQLModel, table=True):
     id: str = Field(primary_key=True)
     customer_id: str
     flight_id: str
     status: str
 
+
 class BookingRequest(BaseModel):
     flight_id: str
+
 
 @app.post("/booking_consuming")
 async def book(request: BookingRequest):
@@ -51,43 +55,51 @@ async def book(request: BookingRequest):
 
     processing_key = f"processing:{flight_id}"
     if await redis.exists(processing_key):
-        raise HTTPException(status_code=409, detail="Booking is already being processed for this flight.")
+        raise HTTPException(
+            status_code=409,
+            detail="Booking is already being processed for this flight.",
+        )
 
     flight = await get_flight_info(flight_id)
     await process_booking(flight)
 
-    return {"message": "Booking request received. Processing..."}
+    return
+
 
 async def get_flight_info(flight_id: int) -> Optional[Flight]:
     async with AsyncSession(engine) as session:
-        flight = (await session.execute(select(Flight).where(Flight.id == flight_id))).scalar_one_or_none()
+        flight = (
+            await session.execute(select(Flight).where(Flight.id == flight_id))
+        ).scalar_one_or_none()
         if not flight:
             raise HTTPException(status_code=404, detail="Flight not found.")
         return flight
 
+
 async def update_flight_info(flight_id: int, current_booking: int):
     async with AsyncSession(engine) as session:
         async with session.begin():
-            flight = (await session.execute(select(Flight).where(Flight.id == flight_id))).scalar_one_or_none()
+            flight = (
+                await session.execute(select(Flight).where(Flight.id == flight_id))
+            ).scalar_one_or_none()
             if flight:
                 flight.current_booking = current_booking
                 session.add(flight)
             await session.commit()
 
-async def create_db_and_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.drop_all)
-        await conn.run_sync(SQLModel.metadata.create_all)
 
 @app.on_event("startup")
 async def startup_event():
-    await create_db_and_tables()
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+        await conn.run_sync(SQLModel.metadata.create_all)
     async with AsyncSession(engine) as session:
         result = await session.execute(select(Flight))
         if not result.scalars().all():
             await add_fake_data(session)
-    
-    await push_initial_message_to_rabbitmq()
+
+    await push_initial_fake_message_to_rabbitmq()
+
 
 @asynccontextmanager
 async def redis_lock(key: str, lock_timeout: int = 60):
@@ -101,66 +113,73 @@ async def redis_lock(key: str, lock_timeout: int = 60):
         if lock_acquired:
             await redis.delete(key)
 
+
 async def process_booking(flight: Flight):
     queue_name = str(flight.id)
     lock_key = queue_name
-    
+
     async with redis_lock(lock_key):
         current_booking = flight.current_booking
         booking_limit = flight.booking_limit
         oversell_limit = flight.oversell_limit
         connection = await aio_pika.connect_robust(RABBITMQ_URL)
-        
+
         async with connection:
             channel = await connection.channel()
-            queue = await channel.declare_queue(queue_name, durable=True)        
-            await redis.set(queue_name, 1)
-            try:
-                empty_queue_counter = 0
-                max_retries = 15
-                
-                while True:
-                    message = None
-                    try:
-                        message = await queue.get(timeout=1)  # Set a timeout for the get method
-                    except aio_pika.exceptions.QueueEmpty as e:
-                        empty_queue_counter += 1
-                        if empty_queue_counter >= max_retries:
-                            print("No message received after 15 attempts. Stopping...")
-                            sys.stdout.flush()
-                            await redis.delete(queue_name)
-                            await update_flight_info(flight.id, current_booking)
-                            break
-                        print("QueueEmpty, waiting for message")
+            queue = await channel.declare_queue(queue_name, durable=True)
+
+            empty_queue_counter = 0
+            max_retries = 15
+
+            while True:
+                message = None
+                try:
+                    message = await queue.get(
+                        timeout=1
+                    )  # Set a timeout for the get method
+                except aio_pika.exceptions.QueueEmpty as e:
+                    empty_queue_counter += 1
+                    if empty_queue_counter >= max_retries:
+                        print("No message received after 15 attempts. Stopping...")
                         sys.stdout.flush()
-                        await asyncio.sleep(1)
-                        continue
+                        await update_flight_info(flight.id, current_booking)
+                        break
+                    print("QueueEmpty, waiting for message")
+                    sys.stdout.flush()
+                    await asyncio.sleep(1)
+                    continue
 
-                    if message is not None:
-                        message_data = json.loads(message.body.decode())
-                        customer_id = message_data.get('customer_id')
-                        booking_id = message_data.get('booking_id')
+                if message is not None:
+                    message_data = json.loads(message.body.decode())
+                    customer_id = message_data.get("customer_id")
+                    booking_id = message_data.get("booking_id")
 
-                        async with AsyncSession(engine) as session:
-                            async with session.begin():
-                                if current_booking < booking_limit:
-                                    status = "booked"
-                                    current_booking += 1
-                                elif current_booking < oversell_limit:
-                                    status = "oversold"
-                                    current_booking += 1
-                                else:
-                                    status = "failed"
+                    async with AsyncSession(engine) as session:
+                        async with session.begin():
+                            if current_booking < booking_limit:
+                                status = "booked"
+                                current_booking += 1
+                            elif current_booking < oversell_limit:
+                                status = "oversold"
+                                current_booking += 1
+                            else:
+                                status = "failed"
 
-                                booking = Booking(customer_id=customer_id, flight_id=flight.id, status=status, id=booking_id)
-                                session.add(booking)
-                                print("Booked Successfully for ", booking)
+                            booking = Booking(
+                                customer_id=customer_id,
+                                flight_id=flight.id,
+                                status=status,
+                                id=booking_id,
+                            )
+                            session.add(booking)
+                            print("Booked Successfully for ", booking)
 
-                            await session.commit()
-                        await message.ack()
-                        empty_queue_counter = 0  # Reset the counter after successfully processing a message
-            finally:
-                await redis.delete(queue_name)
+                        await session.commit()
+                    await message.ack()
+                    empty_queue_counter = (
+                        0  # Reset the counter after successfully processing a message
+                    )
+
 
 async def add_fake_data(session: AsyncSession):
     for i in range(25):
@@ -169,7 +188,7 @@ async def add_fake_data(session: AsyncSession):
         oversell_limit = fake.random_number(digits=2) + booking_limit + 1
 
         flight = Flight(
-            id ="sample_flight_id_"+str(i),
+            id="sample_flight_id_" + str(i),
             from_place=fake.city(),
             to_place=fake.city(),
             flight_date=fake.date_this_year(),
@@ -182,23 +201,25 @@ async def add_fake_data(session: AsyncSession):
     await session.commit()
 
 
-async def push_initial_message_to_rabbitmq():
+async def push_initial_fake_message_to_rabbitmq():
     max_retries = 10  # Maximum number of retries
     retry_delay = 5
     for attempt in range(max_retries):
         try:
             connection = await aio_pika.connect_robust(RABBITMQ_URL)
         except aiormq.exceptions.AMQPConnectionError as e:
-                print(f"Connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
-                sys.stdout.flush()
-                await asyncio.sleep(retry_delay)
-    
+            print(
+                f"Connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds..."
+            )
+            sys.stdout.flush()
+            await asyncio.sleep(retry_delay)
+
     async with connection:
         channel = await connection.channel()
         queue_name = "sample_flight_id_0"
         message = {
-            'booking_id': "sample_booking_id",
-            'customer_id': "sample_customer_id"
+            "booking_id": "sample_booking_id",
+            "customer_id": "sample_customer_id",
         }
         message_body = json.dumps(message).encode()
 
