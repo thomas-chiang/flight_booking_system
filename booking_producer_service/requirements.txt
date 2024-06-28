@@ -3,4 +3,4 @@ uvicorn
 pydantic
 aioredis
 aio_pika
-aiohttp
+requests

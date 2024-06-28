@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   booking_service_redis:
     image: redis:latest

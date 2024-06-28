@@ -102,8 +102,8 @@ async def startup_event():
 
 
 @asynccontextmanager
-async def redis_lock(key: str, lock_timeout: int = 60):
-    lock_acquired = await redis.set(key, 1, ex=lock_timeout, nx=True)
+async def redis_lock(key: str):
+    lock_acquired = await redis.set(key, 1, nx=True)
     try:
         if lock_acquired:
             yield
@@ -140,7 +140,7 @@ async def process_booking(flight: Flight):
                 except aio_pika.exceptions.QueueEmpty as e:
                     empty_queue_counter += 1
                     if empty_queue_counter >= max_retries:
-                        print("No message received after 15 attempts. Stopping...")
+                        print(f"No message received after {max_retries} attempts. Stopping...")
                         sys.stdout.flush()
                         await update_flight_info(flight.id, current_booking)
                         break
