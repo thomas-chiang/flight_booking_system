@@ -9,20 +9,27 @@ services:
       POSTGRES_DB: yourdb
     ports:
       - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    # volumes:
+    #   - postgres_data:/var/lib/postgresql/data
+  
+  redis:
+    image: redis:latest
+    ports:
+      - "6380:6379"
 
-  web:
+  confirming_service:
     build: .
     environment:
       - DATABASE_URL=postgresql+asyncpg://youruser:yourpassword@db/yourdb
+      - REDIS_URL=redis://redis:6379
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - .:/code
+      - .:/app
     ports:
       - "8001:8000"
     depends_on:
       - db
+      - redis
 
-volumes:
-  postgres_data:
+# volumes:
+#   postgres_data:

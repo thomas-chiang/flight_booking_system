@@ -12,6 +12,7 @@ from datetime import date
 from faker import Faker
 from contextlib import asynccontextmanager
 import sys
+import aiormq
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
@@ -26,9 +27,9 @@ fake = Faker()
 redis = aioredis.from_url(REDIS_URL, decode_responses=True)
 
 class Flight(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    from_: str = Field(index=True)
-    to: str = Field(index=True)
+    id: str = Field(default=None, primary_key=True)
+    from_place: str = Field(index=True)
+    to_place: str = Field(index=True)
     flight_date: date = Field(index=True)
     price: float
     booking_limit: int
@@ -37,14 +38,14 @@ class Flight(SQLModel, table=True):
 
 class Booking(SQLModel, table=True):
     id: str = Field(primary_key=True)
-    customer_id: int
-    flight_id: int
+    customer_id: str
+    flight_id: str
     status: str
 
 class BookingRequest(BaseModel):
-    flight_id: int
+    flight_id: str
 
-@app.post("/booking")
+@app.post("/booking_consuming")
 async def book(request: BookingRequest):
     flight_id = request.flight_id
 
@@ -75,6 +76,7 @@ async def update_flight_info(flight_id: int, current_booking: int):
 
 async def create_db_and_tables():
     async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
 
 @app.on_event("startup")
@@ -84,6 +86,8 @@ async def startup_event():
         result = await session.execute(select(Flight))
         if not result.scalars().all():
             await add_fake_data(session)
+    
+    await push_initial_message_to_rabbitmq()
 
 @asynccontextmanager
 async def redis_lock(key: str, lock_timeout: int = 60):
@@ -109,7 +113,7 @@ async def process_booking(flight: Flight):
         
         async with connection:
             channel = await connection.channel()
-            queue = await channel.declare_queue(queue_name)        
+            queue = await channel.declare_queue(queue_name, durable=True)        
             await redis.set(queue_name, 1)
             try:
                 empty_queue_counter = 0
@@ -148,7 +152,7 @@ async def process_booking(flight: Flight):
                                 else:
                                     status = "failed"
 
-                                booking = Booking(customer_id=int(customer_id), flight_id=int(flight.id), status=status, id=booking_id)
+                                booking = Booking(customer_id=customer_id, flight_id=flight.id, status=status, id=booking_id)
                                 session.add(booking)
                                 print("Booked Successfully for ", booking)
 
@@ -159,14 +163,15 @@ async def process_booking(flight: Flight):
                 await redis.delete(queue_name)
 
 async def add_fake_data(session: AsyncSession):
-    for _ in range(25):
+    for i in range(25):
         current_booking = fake.random_number(digits=2)
         booking_limit = fake.random_number(digits=2) + current_booking + 1
         oversell_limit = fake.random_number(digits=2) + booking_limit + 1
 
         flight = Flight(
-            from_=fake.city(),
-            to=fake.city(),
+            id ="sample_flight_id_"+str(i),
+            from_place=fake.city(),
+            to_place=fake.city(),
             flight_date=fake.date_this_year(),
             price=fake.random_number(digits=3),
             booking_limit=booking_limit,
@@ -175,3 +180,45 @@ async def add_fake_data(session: AsyncSession):
         )
         session.add(flight)
     await session.commit()
+
+
+async def push_initial_message_to_rabbitmq():
+    max_retries = 10  # Maximum number of retries
+    retry_delay = 5
+    for attempt in range(max_retries):
+        try:
+            connection = await aio_pika.connect_robust(RABBITMQ_URL)
+        except aiormq.exceptions.AMQPConnectionError as e:
+                print(f"Connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
+                sys.stdout.flush()
+                await asyncio.sleep(retry_delay)
+    
+    async with connection:
+        channel = await connection.channel()
+        queue_name = "sample_flight_id_0"
+        message = {
+            'booking_id': "sample_booking_id",
+            'customer_id': "sample_customer_id"
+        }
+        message_body = json.dumps(message).encode()
+
+        queue = await channel.declare_queue(queue_name, durable=True)
+
+        try:
+            existing_message = await queue.get(timeout=1)
+            # If we get a message, it means the queue is not empty
+            print(f"Queue {queue_name} is not empty. Message already exists.")
+            sys.stdout.flush()
+            await existing_message.reject(requeue=True)
+            return
+        except aio_pika.exceptions.QueueEmpty:
+            # If we get a QueueEmpty exception, it means the queue is empty
+            print(f"Queue {queue_name} is empty. Publishing new message.")
+            sys.stdout.flush()
+
+        # If the message does not exist, publish it
+        await channel.default_exchange.publish(
+            aio_pika.Message(body=message_body),
+            routing_key=queue_name,
+        )
+        print(f"Message sent to {queue_name}: {message}")
