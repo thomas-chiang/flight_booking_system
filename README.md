@@ -72,7 +72,7 @@
 
 ## System Design
 
-![Uploading airline booking.png…]()
+<img width="1108" alt="airline booking" src="https://github.com/thomas-chiang/airline_ticket_system/assets/84237929/29ba3f8a-3824-47d7-890a-79ed0d29dc99">
 
 
 ## Run
