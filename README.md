@@ -70,7 +70,7 @@
 - `from_place` (string): Origin (indexed)
 - `to_place` (string): Destination (indexed)
 - `flight_date` (date): Date of flight (indexed) (partition key for manual sharding)
-- `price` (decimal): Price of the flight
+- `price` (decimal): Price of the flight (indexed) (pagination cursor)
 - `booking_limit` (integer): Maximum number of bookings allowed
 - `oversell_limit` (integer): Maximum number of overbookings allowed
 - `current_booking` (integer): Current number of bookings

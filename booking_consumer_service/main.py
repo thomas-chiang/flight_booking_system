@@ -33,7 +33,7 @@ class Flight(SQLModel, table=True):
     from_place: str = Field(index=True)
     to_place: str = Field(index=True)
     flight_date: date = Field(index=True)
-    price: float
+    price: float = Field(index=True)
     booking_limit: int
     oversell_limit: int
     current_booking: int

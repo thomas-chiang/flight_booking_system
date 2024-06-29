@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends
 from sqlmodel import SQLModel, Field, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy import desc
 from typing import Optional, List
 from pydantic import BaseModel
 from redis.asyncio import Redis
@@ -13,7 +14,6 @@ from datetime import date
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-
 
 engine: AsyncEngine = create_async_engine(DATABASE_URL, echo=True, future=True)
 redis_client = Redis.from_url(REDIS_URL)
@@ -27,7 +27,7 @@ class Flight(SQLModel, table=True):
     from_place: str = Field(index=True)
     to_place: str = Field(index=True)
     flight_date: date = Field(index=True)
-    price: float
+    price: float = Field(index=True)
     booking_limit: int
     oversell_limit: int
     current_booking: int
@@ -37,7 +37,10 @@ class FlightFilter(BaseModel):
     from_place: Optional[str] = None
     to_place: Optional[str] = None
     flight_date: Optional[date] = None
+    cursor: Optional[float] = None
+    cursor_type: Optional[str] = None  # "next" or "previous"
     page: int = 1
+    limit: int = 5
 
 
 class FlightResponse(BaseModel):
@@ -47,6 +50,12 @@ class FlightResponse(BaseModel):
     flight_date: date
     price: float
     booking_left: int
+
+
+class PaginatedFlightResponse(BaseModel):
+    flights: List[FlightResponse]
+    previous_page_cursor: Optional[float]
+    next_page_cursor: Optional[float]
 
 
 @app.on_event("startup")
@@ -63,9 +72,9 @@ async def on_startup():
             await add_fake_data(session)
 
 
-@app.get("/flights", response_model=List[FlightResponse])
+@app.get("/flights", response_model=PaginatedFlightResponse)
 async def get_flights(filter: FlightFilter = Depends()):
-    cache_key = f"flights:{filter.from_place}:{filter.to_place}:{filter.flight_date}:{filter.page}"
+    cache_key = f"flights:{filter.from_place}:{filter.to_place}:{filter.flight_date}:{filter.cursor}:{filter.cursor_type}:{filter.page}:{filter.limit}"
     cached_result = await redis_client.get(cache_key)
     if cached_result:
         return json.loads(cached_result)
@@ -79,8 +88,23 @@ async def get_flights(filter: FlightFilter = Depends()):
         if filter.flight_date:
             query = query.where(Flight.flight_date == filter.flight_date)
 
-        query = query.offset((filter.page - 1) * 5).limit(5)
+        if filter.cursor:
+            if filter.cursor_type == "next":
+                query = query.where(Flight.price > filter.cursor).order_by(Flight.price)
+            elif filter.cursor_type == "previous":
+                query = query.where(Flight.price < filter.cursor).order_by(
+                    desc(Flight.price)
+                )
+        else:
+            query = query.offset((filter.page - 1) * filter.limit).order_by(
+                Flight.price
+            )
+
+        query = query.limit(filter.limit)
         results = (await session.execute(query)).scalars().all()
+
+        if filter.cursor_type == "previous":
+            results.reverse()
 
     results_as_dicts = []
     for result in results:
@@ -95,10 +119,22 @@ async def get_flights(filter: FlightFilter = Depends()):
         }
         results_as_dicts.append(result_dict)
 
-    await redis_client.set(
-        cache_key, json.dumps(results_as_dicts), ex=5
-    )  # Cache for 5 seconds
-    return results_as_dicts
+    previous_page_cursor = (
+        results[0].price
+        if results and (filter.page > 1 or filter.cursor_type == "next")
+        else None
+    )
+    next_page_cursor = results[-1].price if len(results) == filter.limit else None
+
+    response = {
+        "flights": results_as_dicts,
+        "previous_page_cursor": previous_page_cursor,
+        "next_page_cursor": next_page_cursor,
+    }
+
+    await redis_client.set(cache_key, json.dumps(response), ex=5)  # Cache for 5 seconds
+
+    return response
 
 
 async def add_fake_data(session: AsyncSession):
