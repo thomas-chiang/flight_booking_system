@@ -31,7 +31,7 @@
 ## API Endpoints
 
 1. **Search Flights**
-   - **Endpoint**: `/flights`
+   - **Endpoint**: `search_service/flights`
    - **Method**: `GET`
    - **Parameters**:
      - `from_place` (string): Origin
@@ -41,18 +41,25 @@
    - **Response**: List of available flights with prices and remaining seats
 
 2. **Book Flights**
-   - **Endpoint**: `/booking_producing`
+   - **Endpoint**: `booking_producer_service/booking_producing`
    - **Method**: `POST`
    - **Parameters**:
-     - `flight_id` (integer): Flight ID
-     - `customer_id` (integer): Customer ID
-   - **Response**: Booking confirmation details
+     - `flight_id` (string): Flight ID
+     - `customer_id` (string): Customer ID
+   - **Response**: Booking ID with confirmation details 
 
-3. **Confirm Booking Result**
+3. **(Optional: Process Bookings)**
+   - **Endpoint**: `booking_consumer_service/booking_consuming`
+   - **Method**: `POST`
+   - **Parameters**:
+     - `flight_id` (string): Flight ID
+   - **Response**: Consumer situation for Flight ID
+
+4. **Confirm Booking Result**
    - **Endpoint**: `/booking_result`
    - **Method**: `GET`
    - **Parameters**:
-     - `booking_id` (integer): Booking ID
+     - `booking_id` (string): Booking ID
    - **Response**: Booking status
 
 ## Database Schema
@@ -86,4 +93,5 @@ docker-compose up --build
 - openapi
 - Search Flights: http://127.0.0.1:8001/docs
 - Book Flights: http://127.0.0.1:8002/docs
+- Process Bookings: http://127.0.0.1:8003/docs
 - Confirm Booking Result: http://127.0.0.1:8004/docs
