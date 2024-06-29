@@ -2,7 +2,7 @@
 
 ## System Design
 
-<img width="1108" alt="airline booking" src="https://github.com/thomas-chiang/airline_ticket_system/assets/84237929/29ba3f8a-3824-47d7-890a-79ed0d29dc99">
+<img width="1040" alt="airline booking v2" src="https://github.com/thomas-chiang/flight_booking_system/assets/84237929/c1a396d4-4c39-4a6d-af9f-7809876dd2e2">
 
 
 ## Functional Requirements
