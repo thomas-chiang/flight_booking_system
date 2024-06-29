@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends
 from sqlmodel import SQLModel, Field, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -12,6 +12,8 @@ from datetime import date
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
 
 engine: AsyncEngine = create_async_engine(DATABASE_URL, echo=True, future=True)
 redis_client = Redis.from_url(REDIS_URL)
@@ -47,28 +49,11 @@ class FlightResponse(BaseModel):
     booking_left: int
 
 
-async def add_fake_data(session: AsyncSession):
-    for i in range(25):
-        current_booking = fake.random_number(digits=2)
-        booking_limit = fake.random_number(digits=2) + current_booking + 1
-        oversell_limit = fake.random_number(digits=2) + booking_limit + 1
-
-        flight = Flight(
-            id="sample_flight_id_" + str(i),
-            from_place=fake.city(),
-            to_place=fake.city(),
-            flight_date=fake.date_this_year(),
-            price=fake.random_number(digits=3),
-            booking_limit=booking_limit,
-            oversell_limit=oversell_limit,
-            current_booking=current_booking,
-        )
-        session.add(flight)
-    await session.commit()
-
-
 @app.on_event("startup")
 async def on_startup():
+    if ENVIRONMENT != "development":
+        return
+
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
@@ -114,3 +99,23 @@ async def get_flights(filter: FlightFilter = Depends()):
         cache_key, json.dumps(results_as_dicts), ex=5
     )  # Cache for 5 seconds
     return results_as_dicts
+
+
+async def add_fake_data(session: AsyncSession):
+    for i in range(25):
+        current_booking = fake.random_number(digits=2)
+        booking_limit = fake.random_number(digits=2) + current_booking + 1
+        oversell_limit = fake.random_number(digits=2) + booking_limit + 1
+
+        flight = Flight(
+            id="sample_flight_id_" + str(i),
+            from_place=fake.city(),
+            to_place=fake.city(),
+            flight_date=fake.date_this_year(),
+            price=fake.random_number(digits=3),
+            booking_limit=booking_limit,
+            oversell_limit=oversell_limit,
+            current_booking=current_booking,
+        )
+        session.add(flight)
+    await session.commit()

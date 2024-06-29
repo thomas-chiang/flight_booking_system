@@ -5,7 +5,7 @@ import json
 import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sqlmodel import SQLModel, Field, Session, select
+from sqlmodel import SQLModel, Field, select
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession
 from typing import Optional
 from datetime import date
@@ -17,6 +17,7 @@ import aiormq
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 engine: AsyncEngine = create_async_engine(DATABASE_URL, echo=True, future=True)
 
@@ -47,6 +48,22 @@ class Booking(SQLModel, table=True):
 
 class BookingRequest(BaseModel):
     flight_id: str
+
+
+@app.on_event("startup")
+async def startup_event():
+    if ENVIRONMENT != "development":
+        return
+
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+        await conn.run_sync(SQLModel.metadata.create_all)
+    async with AsyncSession(engine) as session:
+        result = await session.execute(select(Flight))
+        if not result.scalars().all():
+            await add_fake_data(session)
+
+    await push_initial_fake_message_to_rabbitmq()
 
 
 @app.post("/booking_consuming")
@@ -88,19 +105,6 @@ async def update_flight_info(flight_id: int, current_booking: int):
             await session.commit()
 
 
-@app.on_event("startup")
-async def startup_event():
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.drop_all)
-        await conn.run_sync(SQLModel.metadata.create_all)
-    async with AsyncSession(engine) as session:
-        result = await session.execute(select(Flight))
-        if not result.scalars().all():
-            await add_fake_data(session)
-
-    await push_initial_fake_message_to_rabbitmq()
-
-
 @asynccontextmanager
 async def redis_lock(key: str):
     lock_acquired = await redis.set(key, 1, nx=True)
@@ -137,10 +141,12 @@ async def process_booking(flight: Flight):
                     message = await queue.get(
                         timeout=1
                     )  # Set a timeout for the get method
-                except aio_pika.exceptions.QueueEmpty as e:
+                except aio_pika.exceptions.QueueEmpty:
                     empty_queue_counter += 1
                     if empty_queue_counter >= max_retries:
-                        print(f"No message received after {max_retries} attempts. Stopping...")
+                        print(
+                            f"No message received after {max_retries} attempts. Stopping..."
+                        )
                         sys.stdout.flush()
                         await update_flight_info(flight.id, current_booking)
                         break

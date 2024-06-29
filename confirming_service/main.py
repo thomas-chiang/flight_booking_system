@@ -1,13 +1,15 @@
 from fastapi import FastAPI, HTTPException
-from sqlmodel import Field, SQLModel, create_engine, select
+from sqlmodel import Field, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 import os
 import aioredis
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
 
 # Create an async engine
 async_engine = create_async_engine(DATABASE_URL, echo=True, future=True)
@@ -34,7 +36,9 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def on_startup():
-    global redis
+    if ENVIRONMENT != "development":
+        return
+
     async with async_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 

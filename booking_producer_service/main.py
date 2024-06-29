@@ -18,7 +18,9 @@ REDIS_URL = os.getenv("REDIS_URL")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL")
 BOOKING_CONSUMER_URL = os.getenv("BOOKING_CONSUMER_URL", "http://localhost:8001/")
 
+
 redis = aioredis.from_url(REDIS_URL, decode_responses=True)
+
 
 class BookingRequest(BaseModel):
     flight_id: str
@@ -35,7 +37,6 @@ async def create_booking(request: BookingRequest):
         send_to_queue(flight_id, customer_id, booking_id),
         initialize_consumer(flight_id),
     )
-
 
     return {"status": "booking request processed", "booking_id": booking_id}
 
@@ -67,11 +68,10 @@ async def send_to_queue(flight_id, customer_id, booking_id):
 
 
 async def initialize_consumer(flight_id):
-    timeout = 60
+    timeout = 20
     start_time = asyncio.get_event_loop().time()
 
     while not await redis.exists(flight_id):
-        
         current_time = asyncio.get_event_loop().time() - start_time
         if current_time > timeout:
             print(f"Timeout reached: {timeout} seconds")
@@ -80,19 +80,22 @@ async def initialize_consumer(flight_id):
                 status_code=500,
                 detail="Fail to consume booking message",
             )
-        
-        await asyncio.to_thread(use_thread_send_request_without_waiting_response, flight_id)
 
-        print(int(timeout - current_time), "seconds left to retry every second")
+        await asyncio.to_thread(
+            use_thread_send_request_without_waiting_response, flight_id
+        )
+
+        print(int(timeout - current_time), "seconds left to retry every 0.5 second")
         sys.stdout.flush()
-        
-        await asyncio.sleep(1)
+
+        await asyncio.sleep(0.5)
+
 
 def use_thread_send_request_without_waiting_response(flight_id):
     def send_request(flight_id):
-        headers = {'Content-Type': 'application/json'}
+        headers = {"Content-Type": "application/json"}
         data = {
-            'flight_id': flight_id,
+            "flight_id": flight_id,
         }
         try:
             response = requests.post(BOOKING_CONSUMER_URL, headers=headers, json=data)
