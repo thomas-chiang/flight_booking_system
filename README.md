@@ -1,5 +1,10 @@
 # Flight Booking System
 
+## System Design
+
+<img width="1108" alt="airline booking" src="https://github.com/thomas-chiang/airline_ticket_system/assets/84237929/29ba3f8a-3824-47d7-890a-79ed0d29dc99">
+
+
 ## Functional Requirements
 
 1. **Book Flights**: Allow users to book flights.
@@ -69,10 +74,6 @@
 - `customer_id` (string): Customer ID (indexed)
 - `flight_id` (string): Flight ID
 - `status` (string): Booking status (e.g., booked, oversold, failed)
-
-## System Design
-
-<img width="1108" alt="airline booking" src="https://github.com/thomas-chiang/airline_ticket_system/assets/84237929/29ba3f8a-3824-47d7-890a-79ed0d29dc99">
 
 
 ## Run
