@@ -74,13 +74,13 @@ async def book(request: BookingRequest):
     if await redis.exists(processing_key):
         raise HTTPException(
             status_code=409,
-            detail="Booking is already being processed for this flight.",
+            detail="Booking is being processed for this flight.",
         )
 
     flight = await get_flight_info(flight_id)
     await process_booking(flight)
 
-    return
+    return {"message": "There are no incoming messages for 15 seconds"}
 
 
 async def get_flight_info(flight_id: int) -> Optional[Flight]:
